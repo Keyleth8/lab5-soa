@@ -32,8 +32,19 @@ class SearchController(private val producerTemplate: ProducerTemplate) {
 
     @RequestMapping(value = ["/search"])
     @ResponseBody
-    fun search(@RequestParam("q") q: String?): Any =
-        producerTemplate.requestBodyAndHeader(DIRECT_ROUTE, "mandalorian", "keywords", q)
+    fun search(@RequestParam("q") q: String?): Any {
+        var max: Int
+        var finalQuery = q
+        q?.let{
+            val regex = "max:[0-9]+".toRegex()
+            regex.find(it)?.let {
+                max = it.value.split(":")[1].toInt()
+                finalQuery = q.replace(regex, "")
+                finalQuery += "?count=$max"
+            }
+        }
+        return producerTemplate.requestBodyAndHeader(DIRECT_ROUTE, "mandalorian", "keywords", finalQuery)
+    }
 }
 
 @Component
