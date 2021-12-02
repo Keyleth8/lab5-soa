@@ -32,19 +32,8 @@ class SearchController(private val producerTemplate: ProducerTemplate) {
 
     @RequestMapping(value = ["/search"])
     @ResponseBody
-    fun search(@RequestParam("q") q: String?): Any {
-        var max: Int
-        var finalQuery = q
-        q?.let{
-            val regex = "max:[0-9]+".toRegex()
-            regex.find(it)?.let {
-                max = it.value.split(":")[1].toInt()
-                finalQuery = q.replace(regex, "")
-                finalQuery += "?count=$max"
-            }
-        }
-        return producerTemplate.requestBodyAndHeader(DIRECT_ROUTE, "mandalorian", "keywords", finalQuery)
-    }
+    fun search(@RequestParam("q") q: String?): Any =
+        producerTemplate.requestBodyAndHeader(DIRECT_ROUTE, "mandalorian", "keywords", q)
 }
 
 @Component
@@ -54,6 +43,16 @@ class Router(meterRegistry: MeterRegistry) : RouteBuilder() {
 
     override fun configure() {
         from(DIRECT_ROUTE)
+            .process { exchange ->
+                val regex = "max:[0-9]+".toRegex()
+                var keywords = exchange.`in`.getHeader("keywords").toString()
+                regex.find(keywords)?.let { match ->
+                    val max = match.value.split(":")[1].toInt()
+                    keywords = keywords.replace(regex, "")
+                    keywords += "?count=$max"
+                    exchange.`in`.setHeader("keywords", keywords)
+                }
+            }
             .toD("twitter-search:\${header.keywords}")
             .wireTap(LOG_ROUTE)
             .wireTap(COUNT_ROUTE)
